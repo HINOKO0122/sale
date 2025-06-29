@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>TSP 4-Opt デモ</title>
+  <style>
+    body { font-family: sans-serif; }
+    #canvas { border:1px solid #444; cursor: crosshair; }
+    button, input { margin: 5px; }
+  </style>
+</head>
+<body>
+
+  <h2>巡回セールスマン問題 (4-Opt 近似)</h2>
+
+  <canvas id="canvas" width="800" height="600"></canvas>
+  <br>
+  <button id="start">Start</button>
+  <button id="reset">Reset</button>
+  <label>Interval(ms):
+    <input type="number" id="interval" value="100" min="10" max="1000">
+  </label>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    const startBtn  = document.getElementById('start');
+    const resetBtn  = document.getElementById('reset');
+    const intervalI = document.getElementById('interval');
+
+    let points = [];     // {x,y} の配列
+    let tour   = [];     // points のインデックスを巡回順に並べた配列
+    let timer  = null;
+
+    // キャンバスをクリックすると点を追加
+    canvas.addEventListener('click', e => {
+      if (timer) return; // 実行中は追加禁止
+      const rect = canvas.getBoundingClientRect();
+      points.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      tour.push(points.length - 1);
+      draw();
+    });
+
+    // Start/Stop
+    startBtn.addEventListener('click', () => {
+      if (!timer) {
+        const ms = parseInt(intervalI.value, 10);
+        timer = setInterval(() => {
+          if (points.length >= 4) { optimize4(); draw(); }
+        }, ms);
+        startBtn.textContent = 'Stop';
+      } else {
+        clearInterval(timer);
+        timer = null;
+        startBtn.textContent = 'Start';
+      }
+    });
+
+    // Reset
+    resetBtn.addEventListener('click', () => {
+      clearInterval(timer);
+      timer = null;
+      startBtn.textContent = 'Start';
+      points = [];
+      tour = [];
+      draw();
+    });
+
+    // 描画
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // 線を引く
+      if (tour.length > 1) {
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < tour.length; i++) {
+          const p = points[tour[i]];
+          if (i === 0) ctx.moveTo(p.x, p.y);
+          else         ctx.lineTo(p.x, p.y);
+        }
+        // 閉路にする
+        const p0 = points[tour[0]];
+        ctx.lineTo(p0.x, p0.y);
+        ctx.stroke();
+      }
+      // 点を描く
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        ctx.fillStyle = '#c00';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+        ctx.fill();
+      }
+      // 全長表示
+      ctx.fillStyle = '#000';
+      ctx.fillText(`Tour length: ${totalDistance(tour).toFixed(2)}`, 10, 20);
+    }
+
+    // 4点を選んで全順列試す
+    function optimize4() {
+      const n = tour.length;
+      // ランダムに4つ異なるインデックスを
+      const picks = new Set();
+      while (picks.size < 4) {
+        picks.add(Math.floor(Math.random() * n));
+      }
+      const idxs = Array.from(picks); // ツアー上の位置
+      let bestTour = tour.slice();
+      let bestDist = totalDistance(tour);
+
+      // 順列を全探索
+      permute(idxs).forEach(perm => {
+        const cand = tour.slice();
+        // idxs[i] の位置に perm[i] の要素を詰め替え
+        for (let i = 0; i < 4; i++) {
+          cand[idxs[i]] = tour[ perm[i] ];
+        }
+        const d = totalDistance(cand);
+        if (d < bestDist) {
+          bestDist = d;
+          bestTour = cand;
+        }
+      });
+
+      tour = bestTour;
+    }
+
+    // Tour の全長を求める
+    function totalDistance(t) {
+      let d = 0;
+      for (let i = 0; i < t.length; i++) {
+        const p1 = points[t[i]];
+        const p2 = points[t[(i+1)%t.length]];
+        d += Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      }
+      return d;
+    }
+
+    // 配列の順列を返す（再帰）
+    function permute(arr) {
+      if (arr.length <= 1) return [arr.slice()];
+      const res = [];
+      arr.forEach((v, i) => {
+        const rest = arr.slice(0, i).concat(arr.slice(i+1));
+        permute(rest).forEach(r => {
+          res.push([v].concat(r));
+        });
+      });
+      return res;
+    }
+
+    // 初期描画
+    draw();
+  </script>
+
+</body>
+</html>
